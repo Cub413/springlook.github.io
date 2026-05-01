@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <title>FPS COLISION FIX REAL</title>
 
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
 <script type="importmap">
 {
   "imports": {
@@ -72,58 +74,74 @@ const size = 0.4;
 /* COLLISION MESHES */
 const colliders = [];
 
-/* LOAD */
-const loader = new GLTFLoader();
-
-/* MAP */
-const loader = new THREE.GLTFLoader();
-
+/* ================= ZIP MAP ================= */
 fetch("texturas/fnaf_movie_pizzaria_inside.zip")
-  .then(res => res.arrayBuffer())
-  .then(data => JSZip.loadAsync(data))
-  .then(zip => {
-    
-    let gltfFile;
-    const files = {};
-    
-    // leer todos los archivos del zip
-    const promises = [];
-    
-    zip.forEach((relativePath, file) => {
-      promises.push(
-        file.async("blob").then(content => {
-          files[relativePath] = URL.createObjectURL(content);
-          
-          // detectar el .gltf
-          if (relativePath.endsWith(".gltf")) {
-            gltfFile = relativePath;
-          }
-        })
-      );
-    });
-    
-    return Promise.all(promises).then(() => ({ files, gltfFile }));
+  .then(res => {
+    console.log("STATUS:", res.status);
+    return res.arrayBuffer();
   })
-  .then(({ files, gltfFile }) => {
-    
-    const manager = new THREE.LoadingManager();
-    
-    // redirigir rutas internas (texturas, bin, etc)
-    manager.setURLModifier((url) => {
-      return files[url] || url;
-    });
-    
-    const loader = new THREE.GLTFLoader(manager);
-    
-    loader.load(files[gltfFile], (gltf) => {
-      gltf.scene.scale.set(3, 3, 3);
-      scene.add(gltf.scene);
-    });
-    
+.then(data => JSZip.loadAsync(data))
+.then(zip => {
+
+  let gltfFile;
+  const files = {};
+  const promises = [];
+
+  zip.forEach((path, file) => {
+    promises.push(
+      file.async("blob").then(content => {
+        files[path] = URL.createObjectURL(content);
+
+        if (path.endsWith(".gltf")) {
+          gltfFile = path;
+        }
+      })
+    );
   });
 
-/* COLLISIONS (CRÍTICO FIX) */
-loader.load("texturas/colisiones_update.gltf",(gltf)=>{
+  return Promise.all(promises).then(() => ({ files, gltfFile }));
+})
+.then(({ files, gltfFile }) => {
+
+  const manager = new THREE.LoadingManager();
+
+  manager.setURLModifier((url) => {
+  
+  // intento directo
+  if (files[url]) return files[url];
+  
+  // quitar "textures/"
+  let clean = url.replace(/^textures\//, "");
+  if (files[clean]) return files[clean];
+  
+  // quitar rutas tipo ./ o /
+  clean = url.replace(/^(\.\/|\/)/, "");
+  if (files[clean]) return files[clean];
+  
+  // fallback: buscar por nombre
+  const fileName = url.split("/").pop();
+  for (let key in files) {
+    if (key.endsWith(fileName)) {
+      return files[key];
+    }
+  }
+  
+  return url;
+});
+
+  const loader = new GLTFLoader(manager);
+
+  loader.load(files[gltfFile], (gltf) => {
+    gltf.scene.scale.set(3,3,3);
+    scene.add(gltf.scene);
+  });
+
+});
+
+/* ================= COLLISION ================= */
+const colLoader = new GLTFLoader();
+
+colLoader.load("texturas/colisiones_update.gltf",(gltf)=>{
 
   gltf.scene.scale.set(3,3,3);
   scene.add(gltf.scene);
@@ -141,10 +159,8 @@ loader.load("texturas/colisiones_update.gltf",(gltf)=>{
   });
 });
 
-/* JOYSTICK */
-let joyX=0,joyY=0;
-let drag=false;
-
+/* ================= JOYSTICK ================= */
+let joyX=0,joyY=0,drag=false;
 const base=document.getElementById("joyBase");
 const stick=document.getElementById("joyStick");
 
@@ -152,7 +168,6 @@ base.addEventListener("touchstart",()=>drag=true);
 
 base.addEventListener("touchmove",e=>{
   if(!drag)return;
-
   const t=e.touches[0];
   const r=base.getBoundingClientRect();
 
@@ -168,7 +183,7 @@ base.addEventListener("touchend",()=>{
   joyX=0;joyY=0;
 });
 
-/* LOOK */
+/* ================= LOOK ================= */
 let yaw=0,pitch=0,last=null;
 
 document.getElementById("lookZone").addEventListener("touchstart",e=>{
@@ -177,7 +192,6 @@ document.getElementById("lookZone").addEventListener("touchstart",e=>{
 
 document.getElementById("lookZone").addEventListener("touchmove",e=>{
   if(!last)return;
-
   const t=e.touches[0];
 
   yaw   -= (t.clientX-last.clientX)*0.0015;
@@ -187,79 +201,58 @@ document.getElementById("lookZone").addEventListener("touchmove",e=>{
   last=t;
 });
 
-/* =======================
-   COLISIÓN REAL (RAY + STEP)
-======================= */
+/* ================= COLLISION CORE ================= */
 const ray = new THREE.Raycaster();
 
 function getHit(pos, dir) {
-  ray.set(
-    new THREE.Vector3(pos.x, pos.y + 0.8, pos.z),
-    dir
-  );
-  
+  ray.set(new THREE.Vector3(pos.x, pos.y+0.8, pos.z), dir);
   const hits = ray.intersectObjects(colliders, true);
   return hits.length ? hits[0] : null;
 }
 
-/* =======================
-   LOOP
-======================= */
+/* ================= LOOP ================= */
 const speed = 0.12;
 
 function animate(){
   requestAnimationFrame(animate);
 
-  let forward = new THREE.Vector3(0, 0, -1)
-  .applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+  let forward = new THREE.Vector3(0,0,-1)
+    .applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
 
-let right = new THREE.Vector3()
-  .crossVectors(forward, new THREE.Vector3(0, 1, 0));
+  let right = new THREE.Vector3()
+    .crossVectors(forward,new THREE.Vector3(0,1,0));
 
-let move = new THREE.Vector3();
-move.addScaledVector(forward, joyY);
-move.addScaledVector(right, -joyX);
+  let move = new THREE.Vector3();
+  move.addScaledVector(forward, joyY);
+  move.addScaledVector(right, -joyX);
 
-if (move.length() > 0) move.normalize();
+  if(move.length()>0) move.normalize();
 
-let velocity = move.clone().multiplyScalar(speed);
+  let velocity = move.clone().multiplyScalar(speed);
+  let hit = getHit(player, velocity.clone().normalize());
 
-// intento de movimiento completo
-let nextPos = player.clone().add(velocity);
+  const skin = 0.15;
 
-// check colisión
-let hit = getHit(player, velocity.clone().normalize());
-
-const skin = 0.15; // margen de tolerancia
-
-if (!hit || hit.distance > size + skin) {
-  player.add(velocity);
-} else {
-  
-  let normal = hit.face.normal.clone()
-    .transformDirection(hit.object.matrixWorld)
-    .normalize();
-  
-  // ignorar suelo/techo
-  if (Math.abs(normal.y) > 0.6) {
+  if(!hit || hit.distance > size + skin){
     player.add(velocity);
-    return;
+  }else{
+    let normal = hit.face.normal.clone()
+      .transformDirection(hit.object.matrixWorld)
+      .normalize();
+
+    if(Math.abs(normal.y) > 0.6){
+      player.add(velocity);
+    }else{
+      let intoWall = velocity.dot(normal);
+      if(intoWall < 0){
+        let slide = velocity.clone().sub(
+          normal.multiplyScalar(intoWall)
+        );
+        player.add(slide);
+      }
+    }
   }
-  
-  // solo paredes
-  let intoWall = velocity.dot(normal);
-  
-  if (intoWall < 0) {
-    let slide = velocity.clone().sub(
-      normal.multiplyScalar(intoWall)
-    );
-    
-    player.add(slide);
-  } else {
-    player.add(velocity);
-  }
-}
-  /* ================= CAMERA ================= */
+
   camera.position.set(player.x,player.y+1.2,player.z);
 
   const dir = new THREE.Vector3(
@@ -268,7 +261,6 @@ if (!hit || hit.distance > size + skin) {
     Math.cos(yaw)*Math.cos(pitch)
   );
 
-  camera.up.set(0,1,0);
   camera.lookAt(camera.position.clone().add(dir));
 
   renderer.render(scene,camera);
