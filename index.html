@@ -2,278 +2,171 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>FPS COLISION FIX REAL</title>
-
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tablet System Check</title>
 
 <style>
-body{margin:0;overflow:hidden;touch-action:none;}
-canvas{display:block;}
-
-#joyBase{
-  position:fixed; bottom:40px; left:40px;
-  width:130px; height:130px;
-  border-radius:50%;
-  background:rgba(255,255,255,0.08);
+body{
+  margin:0;
+  overflow:hidden;
+  background:#000;
+  font-family:monospace;
 }
-#joyStick{
+
+/* ruido + scanlines */
+body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255,0,0,0.06),
+      rgba(0,0,0,0.06) 2px,
+      transparent 3px,
+      transparent 5px
+    );
+  pointer-events:none;
+  animation:scan 6s linear infinite;
+  mix-blend-mode:overlay;
+}
+
+@keyframes scan{
+  from{transform:translateY(0);}
+  to{transform:translateY(20px);}
+}
+
+/* escena */
+#scene{
+  position:fixed;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  perspective:900px;
+}
+
+/* mano (simple estilizada sin imagen externa) */
+.hand{
   position:absolute;
-  width:55px;height:55px;
+  width:420px;
+  height:420px;
+  background:
+    radial-gradient(circle at 50% 60%, #caa, #533);
   border-radius:50%;
-  background:rgba(255,255,255,0.4);
-  left:37px;top:37px;
+  filter:blur(2px);
+  transform:translateY(120px);
+  opacity:0.6;
+  box-shadow:0 0 40px rgba(255,0,0,0.2);
 }
 
-#lookZone{
-  position:fixed;right:0;top:0;
-  width:70%;height:100%;
+/* tablet */
+#tablet{
+  width:260px;
+  height:360px;
+  background:#0d0d0d;
+  border:2px solid #ff2a2a;
+  border-radius:18px;
+  box-shadow:0 0 30px rgba(255,0,0,0.4);
+  transform:rotateX(12deg) rotateY(-10deg);
+  position:relative;
+  animation:float 2.5s ease-in-out infinite;
+}
+
+@keyframes float{
+  0%,100%{transform:rotateX(12deg) rotateY(-10deg) translateY(0);}
+  50%{transform:rotateX(14deg) rotateY(-8deg) translateY(-6px);}
+}
+
+/* pantalla tablet */
+#screen{
+  position:absolute;
+  inset:12px;
+  background:radial-gradient(circle at center,#200000,#000);
+  border:1px solid rgba(255,0,0,0.3);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  color:#ff2a2a;
+  box-shadow:inset 0 0 20px rgba(255,0,0,0.2);
+  animation:flicker 2s infinite;
+}
+
+@keyframes flicker{
+  0%,100%{opacity:1;}
+  50%{opacity:0.85;}
+  52%{opacity:1;}
+  54%{opacity:0.9;}
+}
+
+#title{
+  font-size:18px;
+  letter-spacing:3px;
+  text-shadow:0 0 10px red;
+}
+
+#msg{
+  font-size:12px;
+  margin-top:10px;
+  opacity:0.8;
+}
+
+#btn{
+  margin-top:15px;
+  padding:8px 16px;
+  border:1px solid #ff2a2a;
+  background:transparent;
+  color:#ff2a2a;
+  display:none;
+  cursor:pointer;
+}
+
+#btn:active{
+  background:#ff2a2a;
+  color:#000;
+  box-shadow:0 0 15px red;
 }
 </style>
 </head>
 
 <body>
 
-<div id="joyBase"><div id="joyStick"></div></div>
-<div id="lookZone"></div>
+<div id="scene">
+  <div class="hand"></div>
 
-<script type="module">
-import * as THREE from "three";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+  <div id="tablet">
+    <div id="screen">
+      <div id="title">SYSTEM CHECK</div>
+      <div id="msg">Rotate device to continue</div>
+      <button id="btn">START</button>
+    </div>
+  </div>
+</div>
 
-/* SCENE */
-const scene = new THREE.Scene();
-scene.background = new THREE.TextureLoader().load("texturas/dia.jpg");
+<script>
+const btn = document.getElementById("btn");
+const msg = document.getElementById("msg");
 
-/* LIGHT */
-scene.add(new THREE.AmbientLight(0xffffff,0.6));
-const sun = new THREE.DirectionalLight(0xffffff,1.5);
-sun.position.set(10,20,10);
-scene.add(sun);
-
-/* CAMERA */
-const camera = new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
-
-/* RENDER */
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(innerWidth,innerHeight);
-document.body.appendChild(renderer.domElement);
-
-/* PLAYER */
-const player = new THREE.Vector3(-25.73,-10,-1.12);
-const size = 0.4;
-
-/* COLLISION MESHES */
-const colliders = [];
-
-/* ================= ZIP MAP ================= */
-fetch("texturas/fnaf_movie_pizzaria_inside.zip")
-  .then(res => {
-    console.log("STATUS:", res.status);
-    return res.arrayBuffer();
-  })
-.then(data => JSZip.loadAsync(data))
-.then(zip => {
-
-  let gltfFile;
-  const files = {};
-  const promises = [];
-
-  zip.forEach((path, file) => {
-    promises.push(
-      file.async("blob").then(content => {
-        files[path] = URL.createObjectURL(content);
-
-        if (path.endsWith(".gltf")) {
-          gltfFile = path;
-        }
-      })
-    );
-  });
-
-  return Promise.all(promises).then(() => ({ files, gltfFile }));
-})
-.then(({ files, gltfFile }) => {
-
-  const manager = new THREE.LoadingManager();
-
-  manager.setURLModifier((url) => {
-  
-  // intento directo
-  if (files[url]) return files[url];
-  
-  // quitar "textures/"
-  let clean = url.replace(/^textures\//, "");
-  if (files[clean]) return files[clean];
-  
-  // quitar rutas tipo ./ o /
-  clean = url.replace(/^(\.\/|\/)/, "");
-  if (files[clean]) return files[clean];
-  
-  // fallback: buscar por nombre
-  const fileName = url.split("/").pop();
-  for (let key in files) {
-    if (key.endsWith(fileName)) {
-      return files[key];
-    }
-  }
-  
-  return url;
-});
-
-  const loader = new GLTFLoader(manager);
-
-  loader.load(files[gltfFile], (gltf) => {
-    gltf.scene.scale.set(3,3,3);
-    scene.add(gltf.scene);
-  });
-
-});
-
-/* ================= COLLISION ================= */
-const colLoader = new GLTFLoader();
-
-colLoader.load("texturas/colisiones_update.gltf",(gltf)=>{
-
-  gltf.scene.scale.set(3,3,3);
-  scene.add(gltf.scene);
-
-  gltf.scene.traverse(o=>{
-    if(o.isMesh){
-
-      o.material = o.material.clone();
-      o.material.transparent = true;
-      o.material.opacity = 0.10;
-      o.material.color.set(0xff0000);
-
-      colliders.push(o);
-    }
-  });
-});
-
-/* ================= JOYSTICK ================= */
-let joyX=0,joyY=0,drag=false;
-const base=document.getElementById("joyBase");
-const stick=document.getElementById("joyStick");
-
-base.addEventListener("touchstart",()=>drag=true);
-
-base.addEventListener("touchmove",e=>{
-  if(!drag)return;
-  const t=e.touches[0];
-  const r=base.getBoundingClientRect();
-
-  joyX=Math.max(-1,Math.min(1,(t.clientX-r.left-65)/65));
-  joyY=Math.max(-1,Math.min(1,(t.clientY-r.top-65)/65));
-
-  stick.style.left=(65+joyX*35-27)+"px";
-  stick.style.top=(65+joyY*35-27)+"px";
-});
-
-base.addEventListener("touchend",()=>{
-  drag=false;
-  joyX=0;joyY=0;
-});
-
-/* ================= LOOK ================= */
-let yaw=0,pitch=0,last=null;
-
-document.getElementById("lookZone").addEventListener("touchstart",e=>{
-  last=e.touches[0];
-});
-
-document.getElementById("lookZone").addEventListener("touchmove",e=>{
-  if(!last)return;
-  const t=e.touches[0];
-
-  yaw   -= (t.clientX-last.clientX)*0.0015;
-  pitch -= (t.clientY-last.clientY)*0.0015;
-
-  pitch=Math.max(-1.2,Math.min(1.2,pitch));
-  last=t;
-});
-
-/* ================= COLLISION CORE ================= */
-const ray = new THREE.Raycaster();
-
-function getHit(pos, dir) {
-  ray.set(new THREE.Vector3(pos.x, pos.y+0.8, pos.z), dir);
-  const hits = ray.intersectObjects(colliders, true);
-  return hits.length ? hits[0] : null;
-}
-
-/* ================= LOOP ================= */
-const speed = 0.12;
-
-function animate(){
-  requestAnimationFrame(animate);
-
-  let forward = new THREE.Vector3(0,0,-1)
-    .applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
-
-  let right = new THREE.Vector3()
-    .crossVectors(forward,new THREE.Vector3(0,1,0));
-
-  let move = new THREE.Vector3();
-  move.addScaledVector(forward, joyY);
-  move.addScaledVector(right, -joyX);
-
-  if(move.length()>0) move.normalize();
-
-  let velocity = move.clone().multiplyScalar(speed);
-  let hit = getHit(player, velocity.clone().normalize());
-
-  const skin = 0.15;
-
-  if(!hit || hit.distance > size + skin){
-    player.add(velocity);
+function check(){
+  if(innerWidth > innerHeight){
+    msg.textContent = "READY";
+    btn.style.display = "block";
   }else{
-    let normal = hit.face.normal.clone()
-      .transformDirection(hit.object.matrixWorld)
-      .normalize();
-
-    if(Math.abs(normal.y) > 0.6){
-      player.add(velocity);
-    }else{
-      let intoWall = velocity.dot(normal);
-      if(intoWall < 0){
-        let slide = velocity.clone().sub(
-          normal.multiplyScalar(intoWall)
-        );
-        player.add(slide);
-      }
-    }
+    msg.textContent = "ROTATE DEVICE TO LANDSCAPE";
+    btn.style.display = "none";
   }
-
-  camera.position.set(player.x,player.y+1.2,player.z);
-
-  const dir = new THREE.Vector3(
-    Math.sin(yaw)*Math.cos(pitch),
-    Math.sin(pitch),
-    Math.cos(yaw)*Math.cos(pitch)
-  );
-
-  camera.lookAt(camera.position.clone().add(dir));
-
-  renderer.render(scene,camera);
 }
 
-animate();
+btn.onclick = ()=>{
+  window.location.href = "game.html";
+};
 
-/* RESIZE */
-addEventListener("resize",()=>{
-  camera.aspect=innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);
-});
+addEventListener("resize",check);
+addEventListener("orientationchange",check);
+
+check();
 </script>
 
 </body>

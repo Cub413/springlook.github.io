@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>FPS COLISION FIX REAL</title>
+
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<style>
+body{margin:0;overflow:hidden;touch-action:none;}
+canvas{display:block;}
+
+#joyBase{
+  position:fixed; bottom:40px; left:40px;
+  width:130px; height:130px;
+  border-radius:50%;
+  background:rgba(255,255,255,0.08);
+}
+#joyStick{
+  position:absolute;
+  width:55px;height:55px;
+  border-radius:50%;
+  background:rgba(255,255,255,0.4);
+  left:37px;top:37px;
+}
+
+#lookZone{
+  position:fixed;right:0;top:0;
+  width:70%;height:100%;
+}
+#loadingScreen{
+  position:fixed;
+  inset:0;
+  background:#000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:monospace;
+  z-index:99999;
+}
+
+/* mini tablet */
+#panel{
+  width:190px;
+  height:260px;
+  border-radius:16px;
+  border:1px solid #ff2a2a;
+  background:radial-gradient(circle at center,#1a0000,#000);
+  box-shadow:
+    0 0 18px rgba(255,0,0,0.35),
+    inset 0 0 15px rgba(255,0,0,0.2);
+  position:relative;
+  overflow:hidden;
+
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+
+  color:#ff2a2a;
+
+  animation:float 2.5s ease-in-out infinite;
+}
+
+/* brillo de pantalla */
+#panel::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(
+    120deg,
+    transparent,
+    rgba(255,0,0,0.08),
+    transparent
+  );
+  animation:scan 4s linear infinite;
+}
+
+/* borde vivo */
+#panel::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border:1px solid rgba(255,0,0,0.25);
+  animation:pulse 1.5s infinite;
+}
+
+/* texto */
+#title{
+  font-size:14px;
+  letter-spacing:2px;
+  text-shadow:0 0 8px red;
+  z-index:2;
+}
+
+#sub{
+  margin-top:8px;
+  font-size:10px;
+  opacity:0.75;
+  z-index:2;
+}
+
+/* flotación ligera */
+@keyframes float{
+  0%,100%{transform:translateY(0);}
+  50%{transform:translateY(-4px);}
+}
+
+/* scan */
+@keyframes scan{
+  from{transform:translateY(-100%);}
+  to{transform:translateY(100%);}
+}
+
+/* pulso */
+@keyframes pulse{
+  0%,100%{opacity:0.3;}
+  50%{opacity:1;}
+}
+</style>
+</head>
+
+<body>
+<div id="fps" style="
+position:fixed;
+top:10px;
+left:10px;
+color:white;
+font-family:monospace;
+font-size:14px;
+background:rgba(0,0,0,0.5);
+padding:5px;
+z-index:9999;
+">
+  FPS: --
+</div>
+<div id="loadingScreen">
+  <div id="panel">
+    <div id="title">LOADING...</div>
+    <div id="sub">Cargando recursos</div>
+  </div>
+</div>
+<div id="joyBase"><div id="joyStick"></div></div>
+<div id="lookZone"></div>
+
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+/* SCENE */
+const scene = new THREE.Scene();
+scene.background = new THREE.TextureLoader().load("texturas/dia.jpg");
+
+const impactLight1 = new THREE.PointLight(0xffffff, 100, 1000);
+
+impactLight1.position.set(
+  -49.31076414983373,
+  -2.5164919658017206,
+  6.18652892161708
+);
+
+scene.add(impactLight1);
+const impactLight2 = new THREE.PointLight(0xffffff, 100, 1000);
+
+impactLight2.position.set(
+  -25.224702214943992,
+  -2.5110446821894716,
+  -10.931758176229248
+);
+
+scene.add(impactLight2);
+const impactLight3 = new THREE.PointLight(0xffffff, 100, 1000);
+
+impactLight3.position.set(
+  -6.129268957001694,
+  -2.3053984399457255,
+  -2.411275368978436
+);
+
+scene.add(impactLight3);
+const impactLightOrange = new THREE.PointLight(0xff7a00, 100, 1000);
+
+impactLightOrange.position.set(
+  -30.29541767473652,
+  -2.5010988228961075,
+  41.27127376660143
+);
+
+scene.add(impactLightOrange);
+const impactLightWhite = new THREE.PointLight(0xffffff, 100, 1000);
+
+impactLightWhite.position.set(
+  -49.419049380946504,
+  -2.524191273574449,
+  25.724639862591175
+);
+
+scene.add(impactLightWhite);
+const impactLight = new THREE.PointLight(0xffffff, 100, 1000);
+
+// coordenadas del impacto
+impactLight.position.set(
+  -38.86743146944433,
+  -2.4849119250667298,
+  -10.91614378347785
+);
+
+scene.add(impactLight);
+const impactLightGreen = new THREE.PointLight(0x00ff00, 100, 1000);
+
+impactLightGreen.position.set(
+  -66.8376378713303,
+  -4.773301826863653,
+  -8.828430541170816
+);
+
+scene.add(impactLightGreen);
+const flickerLight = new THREE.PointLight(0xffffff, 80, 1000);
+
+flickerLight.position.set(
+  -23.957911620833947,
+  -1.9232367782990718,
+  -38.07161293749572
+);
+
+scene.add(flickerLight);
+
+// 💡 efecto fallo / parpadeo
+setInterval(() => {
+  flickerLight.intensity = Math.random() > 0.5 ? 80 : 0;
+}, 120);
+/* CAMERA */
+const camera = new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
+
+/* RENDER */
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+document.body.appendChild(renderer.domElement);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.8;
+/* PLAYER */
+const player = new THREE.Vector3(-25.73,-10,-1.12);
+const size = 0.4;
+
+/* COLLISION MESHES */
+const colliders = [];
+
+/* ================= ZIP MAP ================= */
+fetch("texturas/fnaf_movie_pizzaria_inside.zip")
+  .then(res => {
+    console.log("STATUS:", res.status);
+    return res.arrayBuffer();
+  })
+  .then(data => JSZip.loadAsync(data))
+  .then(zip => {
+    
+    let gltfFile;
+    const files = {};
+    const promises = [];
+    
+    zip.forEach((path, file) => {
+      promises.push(
+        file.async("blob").then(content => {
+          files[path] = URL.createObjectURL(content);
+          
+          if (path.endsWith(".gltf")) {
+            gltfFile = path;
+          }
+        })
+      );
+    });
+    
+    return Promise.all(promises).then(() => ({ files, gltfFile }));
+  })
+  .then(({ files, gltfFile }) => {
+    
+    const manager = new THREE.LoadingManager();
+    
+    manager.setURLModifier((url) => {
+      
+      if (files[url]) return files[url];
+      
+      let clean = url.replace(/^textures\//, "");
+      if (files[clean]) return files[clean];
+      
+      clean = url.replace(/^(\.\/|\/)/, "");
+      if (files[clean]) return files[clean];
+      
+      const fileName = url.split("/").pop();
+      for (let key in files) {
+        if (key.endsWith(fileName)) {
+          return files[key];
+        }
+      }
+      
+      return url;
+    });
+    
+    const loader = new GLTFLoader(manager);
+    
+    loader.load(files[gltfFile], (gltf) => {
+      
+      // 🔥 MISMO TAMAÑO QUE COLISIONES (3,3,3)
+      gltf.scene.scale.set(3, 3, 3);
+      
+      scene.add(gltf.scene);
+      mapDone = true;
+      checkReady();
+    });
+    
+  });
+
+/* ================= COLLISION ================= */
+const colLoader = new GLTFLoader();
+
+colLoader.load("texturas/colisiones_update.gltf", (gltf) => {
+  
+  gltf.scene.scale.set(3, 3, 3);
+  scene.add(gltf.scene);
+  
+  gltf.scene.traverse(o => {
+    if (o.isMesh) {
+      
+      o.castShadow = true;
+      o.receiveShadow = true;
+      
+      if (o.material) {
+        o.material.roughness = 0;
+        o.material.metalness = 0;
+      }
+      
+      // 🔥 colisión invisible pero existente
+      o.material = o.material.clone();
+      o.material.transparent = true;
+      o.material.opacity = 0.0;
+      o.material.color.set(0xff0000);
+      
+      colliders.push(o);
+    }
+  });
+  
+  colDone = true;
+  checkReady();
+});
+
+/* ================= JOYSTICK ================= */
+let joyX=0,joyY=0,drag=false;
+const base=document.getElementById("joyBase");
+const stick=document.getElementById("joyStick");
+
+base.addEventListener("touchstart",()=>drag=true);
+
+base.addEventListener("touchmove",e=>{
+  if(!drag)return;
+  const t=e.touches[0];
+  const r=base.getBoundingClientRect();
+
+  joyX=Math.max(-1,Math.min(1,(t.clientX-r.left-65)/65));
+  joyY=Math.max(-1,Math.min(1,(t.clientY-r.top-65)/65));
+
+  stick.style.left=(65+joyX*35-27)+"px";
+  stick.style.top=(65+joyY*35-27)+"px";
+});
+
+base.addEventListener("touchend",()=>{
+  drag=false;
+  joyX=0;joyY=0;
+});
+
+/* ================= LOOK ================= */
+let yaw=0,pitch=0,last=null;
+
+document.getElementById("lookZone").addEventListener("touchstart",e=>{
+  last=e.touches[0];
+});
+
+document.getElementById("lookZone").addEventListener("touchmove",e=>{
+  if(!last)return;
+  const t=e.touches[0];
+
+  yaw   -= (t.clientX-last.clientX)*0.0035;
+  pitch -= (t.clientY-last.clientY)*0.0035;
+
+  pitch=Math.max(-1.2,Math.min(1.2,pitch));
+  last=t;
+});
+
+/* ================= COLLISION CORE ================= */
+const ray = new THREE.Raycaster();
+
+function getHit(pos, dir) {
+  ray.set(new THREE.Vector3(pos.x, pos.y+0.8, pos.z), dir);
+  const hits = ray.intersectObjects(colliders, true);
+  return hits.length ? hits[0] : null;
+}
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+let lastRayTime = 0;
+let startX = 0;
+let startY = 0;
+
+const marker = new THREE.Mesh(
+  new THREE.SphereGeometry(0.15, 16, 16),
+  new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+);
+marker.visible = false;
+scene.add(marker);
+
+function shootRay(x, y) {
+
+  const now = Date.now();
+
+  // ⏱ cooldown de 5 segundos
+  if (now - lastRayTime < 5000) return;
+  lastRayTime = now;
+
+  mouse.x = (x / innerWidth) * 2 - 1;
+  mouse.y = -(y / innerHeight) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+
+  const hits = raycaster.intersectObjects(scene.children, true);
+
+  if (hits.length > 0) {
+    const p = hits[0].point;
+
+    marker.position.copy(p);
+    marker.visible = true;
+
+    console.log("📍 Impacto:", p.x, p.y, p.z);
+  }
+}
+window.addEventListener("touchstart", (e) => {
+  const t = e.touches[0];
+  startX = t.clientX;
+  startY = t.clientY;
+});
+
+window.addEventListener("touchend", (e) => {
+  const t = e.changedTouches[0];
+
+  const dx = Math.abs(t.clientX - startX);
+  const dy = Math.abs(t.clientY - startY);
+
+  // 🖱️ CLICK (pequeño movimiento)
+  if (dx < 10 && dy < 10) {
+    shootRay(t.clientX, t.clientY);
+  }
+
+  // 👆 swipe ignorado automáticamente
+});
+let lastTime = performance.now();
+let frames = 0;
+let fps = 0;
+
+const fpsDiv = document.getElementById("fps");
+
+const loadingScreen = document.getElementById("loadingScreen");
+const title = document.getElementById("title");
+const sub = document.getElementById("sub");
+
+let mapDone = false;
+let colDone = false;
+
+function checkReady(){
+  if(mapDone && colDone){
+    setTimeout(()=>{
+      title.textContent = "TOCA PARA CONTINUAR";
+      sub.textContent = "Presiona para iniciar";
+
+      loadingScreen.addEventListener("click", startGame, {once:true});
+      loadingScreen.addEventListener("touchstart", startGame, {once:true});
+    }, 3000);
+  }
+}
+
+function startGame(){
+  try{
+    const el = document.documentElement;
+    if(el.requestFullscreen) el.requestFullscreen();
+  }catch(e){}
+
+  loadingScreen.style.display = "none";
+}
+
+/* ================= LOOP ================= */
+const speed = 0.12;
+
+function animate(){
+  frames++;
+
+const now = performance.now();
+const delta = now - lastTime;
+
+if (delta >= 1000) {
+  fps = Math.round((frames * 1000) / delta);
+  frames = 0;
+  lastTime = now;
+  
+  fpsDiv.textContent = "FPS: " + fps;
+}
+  requestAnimationFrame(animate);
+
+  let forward = new THREE.Vector3(0,0,-1)
+    .applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
+
+  let right = new THREE.Vector3()
+    .crossVectors(forward,new THREE.Vector3(0,1,0));
+
+  let move = new THREE.Vector3();
+  move.addScaledVector(forward, joyY);
+  move.addScaledVector(right, -joyX);
+
+  if(move.length()>0) move.normalize();
+
+  let velocity = move.clone().multiplyScalar(speed);
+  let hit = getHit(player, velocity.clone().normalize());
+
+  const skin = 0.15;
+
+  if(!hit || hit.distance > size + skin){
+    player.add(velocity);
+  }else{
+    let normal = hit.face.normal.clone()
+      .transformDirection(hit.object.matrixWorld)
+      .normalize();
+
+    if(Math.abs(normal.y) > 0.6){
+      player.add(velocity);
+    }else{
+      let intoWall = velocity.dot(normal);
+      if(intoWall < 0){
+        let slide = velocity.clone().sub(
+          normal.multiplyScalar(intoWall)
+        );
+        player.add(slide);
+      }
+    }
+  }
+
+  camera.position.set(player.x,player.y+1.2,player.z);
+
+  const dir = new THREE.Vector3(
+    Math.sin(yaw)*Math.cos(pitch),
+    Math.sin(pitch),
+    Math.cos(yaw)*Math.cos(pitch)
+  );
+
+  camera.lookAt(camera.position.clone().add(dir));
+
+  renderer.render(scene,camera);
+}
+
+animate();
+
+/* RESIZE */
+addEventListener("resize",()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+
+</body>
+</html>
