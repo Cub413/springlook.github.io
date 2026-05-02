@@ -126,6 +126,27 @@ canvas{display:block;}
   0%,100%{opacity:0.3;}
   50%{opacity:1;}
 }
+#fsBtn{
+  position:fixed;
+  top:10px;
+  right:10px;
+  width:42px;
+  height:42px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:22px;
+  color:white;
+  background:rgba(0,0,0,0.5);
+  border:1px solid rgba(255,255,255,0.2);
+  border-radius:8px;
+  z-index:100000;
+  user-select:none;
+}
+
+#fsBtn:active{
+  transform:scale(0.95);
+}
 </style>
 </head>
 
@@ -149,6 +170,7 @@ z-index:9999;
     <div id="sub">Cargando recursos</div>
   </div>
 </div>
+<div id="fsBtn">⛶</div>
 <div id="joyBase"><div id="joyStick"></div></div>
 <div id="lookZone"></div>
 
@@ -257,6 +279,19 @@ let enemyMixer;
 let enemyActions = {};
 let currentAction;
 let enemyReady = false;
+const fsBtn = document.getElementById("fsBtn");
+
+fsBtn.addEventListener("click", () => {
+  const el = document.documentElement;
+
+  if (!document.fullscreenElement) {
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    else if (el.msRequestFullscreen) el.msRequestFullscreen();
+  } else {
+    if (document.exitFullscreen) document.exitFullscreen();
+  }
+});
 /* PLAYER */
 const player = new THREE.Vector3(-25.73,-10,-1.12);
 const size = 0.4;
