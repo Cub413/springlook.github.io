@@ -247,6 +247,16 @@ renderer.setSize(innerWidth,innerHeight);
 document.body.appendChild(renderer.domElement);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.8;
+let enemy;
+let enemyIdle, enemyWalk;
+
+let enemyState = "idle";
+let detectRange = 8;
+let enemySpeed = 0.04;
+let enemyMixer;
+let enemyActions = {};
+let currentAction;
+let enemyReady = false;
 /* PLAYER */
 const player = new THREE.Vector3(-25.73,-10,-1.12);
 const size = 0.4;
@@ -318,7 +328,55 @@ fetch("texturas/fnaf_movie_pizzaria_inside.zip")
     });
     
   });
+const enemyLoader = new GLTFLoader();
 
+enemyLoader.load("texturas/enemigo_quieto.gltf", (gltf) => {
+  
+  enemyIdle = gltf.scene;
+  enemyIdle.scale.set(3, 3, 3);
+  
+  // 🎬 animaciones idle
+  const idleClips = gltf.animations;
+  
+  enemyLoader.load("texturas/enemigo_caminando.gltf", (gltf2) => {
+    
+    enemyWalk = gltf2.scene;
+    enemyWalk.scale.set(3, 3, 3);
+    
+    const walkClips = gltf2.animations;
+    
+    enemy = enemyIdle;
+    scene.add(enemy);
+    enemy.position.set(
+  -47.517139117111135,
+  -10.572744890149691,
+  30.47546717848566
+);
+    
+    // 🎬 MIXER (usa el modelo actual)
+    enemyMixer = new THREE.AnimationMixer(enemy);
+
+// guardar animaciones
+if (idleClips.length > 0) {
+  enemyActions.idle = enemyMixer.clipAction(idleClips[0]);
+}
+
+if (walkClips.length > 0) {
+  enemyActions.walk = enemyMixer.clipAction(walkClips[0]);
+}
+
+// 🔥 VELOCIDAD DE ANIMACIÓN
+if (enemyActions.idle) enemyActions.idle.timeScale = 1.5;
+if (enemyActions.walk) enemyActions.walk.timeScale = 2.0;
+
+// ▶️ iniciar idle
+currentAction = enemyActions.idle;
+if (currentAction) currentAction.play();
+    enemyReady = true;
+    
+  });
+  
+});
 /* ================= COLLISION ================= */
 const colLoader = new GLTFLoader();
 
@@ -353,47 +411,143 @@ colLoader.load("texturas/colisiones_update.gltf", (gltf) => {
 });
 
 /* ================= JOYSTICK ================= */
-let joyX=0,joyY=0,drag=false;
-const base=document.getElementById("joyBase");
-const stick=document.getElementById("joyStick");
+let joyX = 0, joyY = 0;
+let joyTouchId = null;
 
-base.addEventListener("touchstart",()=>drag=true);
+const base = document.getElementById("joyBase");
+const stick = document.getElementById("joyStick");
 
-base.addEventListener("touchmove",e=>{
-  if(!drag)return;
-  const t=e.touches[0];
-  const r=base.getBoundingClientRect();
-
-  joyX=Math.max(-1,Math.min(1,(t.clientX-r.left-65)/65));
-  joyY=Math.max(-1,Math.min(1,(t.clientY-r.top-65)/65));
-
-  stick.style.left=(65+joyX*35-27)+"px";
-  stick.style.top=(65+joyY*35-27)+"px";
+base.addEventListener("touchstart", (e) => {
+  for (let t of e.changedTouches) {
+    if (joyTouchId === null) {
+      joyTouchId = t.identifier;
+    }
+  }
 });
 
-base.addEventListener("touchend",()=>{
-  drag=false;
-  joyX=0;joyY=0;
+base.addEventListener("touchmove", (e) => {
+  for (let t of e.changedTouches) {
+    if (t.identifier === joyTouchId) {
+
+      const r = base.getBoundingClientRect();
+
+      joyX = Math.max(-1, Math.min(1, (t.clientX - r.left - 65) / 65));
+      joyY = Math.max(-1, Math.min(1, (t.clientY - r.top - 65) / 65));
+
+      stick.style.left = (65 + joyX * 35 - 27) + "px";
+      stick.style.top  = (65 + joyY * 35 - 27) + "px";
+    }
+  }
 });
 
+base.addEventListener("touchend", (e) => {
+  for (let t of e.changedTouches) {
+    if (t.identifier === joyTouchId) {
+      joyTouchId = null;
+      joyX = 0;
+      joyY = 0;
+
+      stick.style.left = "37px";
+      stick.style.top  = "37px";
+    }
+  }
+});
 /* ================= LOOK ================= */
-let yaw=0,pitch=0,last=null;
+let yaw = 0, pitch = 0;
+let lookTouchId = null;
+let lastX = 0, lastY = 0;
 
-document.getElementById("lookZone").addEventListener("touchstart",e=>{
-  last=e.touches[0];
+const lookZone = document.getElementById("lookZone");
+
+lookZone.addEventListener("touchstart", (e) => {
+  for (let t of e.changedTouches) {
+    if (lookTouchId === null) {
+      lookTouchId = t.identifier;
+      lastX = t.clientX;
+      lastY = t.clientY;
+    }
+  }
 });
 
-document.getElementById("lookZone").addEventListener("touchmove",e=>{
-  if(!last)return;
-  const t=e.touches[0];
+lookZone.addEventListener("touchmove", (e) => {
+  for (let t of e.changedTouches) {
+    if (t.identifier === lookTouchId) {
 
-  yaw   -= (t.clientX-last.clientX)*0.0035;
-  pitch -= (t.clientY-last.clientY)*0.0035;
+      const dx = t.clientX - lastX;
+      const dy = t.clientY - lastY;
 
-  pitch=Math.max(-1.2,Math.min(1.2,pitch));
-  last=t;
+      yaw   -= dx * 0.0035;
+      pitch -= dy * 0.0035;
+
+      pitch = Math.max(-1.2, Math.min(1.2, pitch));
+
+      lastX = t.clientX;
+      lastY = t.clientY;
+    }
+  }
 });
 
+lookZone.addEventListener("touchend", (e) => {
+  for (let t of e.changedTouches) {
+    if (t.identifier === lookTouchId) {
+      lookTouchId = null;
+    }
+  }
+});
+function updateEnemy(){
+
+  if(!enemyReady) return;
+
+  const dx = player.x - enemy.position.x;
+  const dz = player.z - enemy.position.z;
+
+  const dist = Math.sqrt(dx*dx + dz*dz);
+
+  // estado
+  enemyState = dist < detectRange ? "walk" : "idle";
+
+  // cambio de modelo
+  if (enemyState === "walk" && currentAction !== enemyActions.walk) {
+  currentAction?.fadeOut(0.2);
+  currentAction = enemyActions.walk;
+  currentAction?.reset().fadeIn(0.2).play();
+}
+
+if (enemyState === "idle" && currentAction !== enemyActions.idle) {
+  currentAction?.fadeOut(0.2);
+  currentAction = enemyActions.idle;
+  currentAction?.reset().fadeIn(0.2).play();
+}
+  // movimiento
+  if(enemyState === "walk"){
+
+    const dir = new THREE.Vector3(dx,0,dz).normalize();
+    const velocity = dir.multiplyScalar(enemySpeed);
+
+    let hit = getHit(enemy.position, velocity.clone().normalize());
+
+    if(!hit || hit.distance > 0.5){
+      enemy.position.add(velocity);
+    }
+
+    const targetAngle = Math.atan2(
+  player.x - enemy.position.x,
+  player.z - enemy.position.z
+);
+
+let currentAngle = enemy.rotation.y;
+
+// normalizar diferencia (-PI a PI)
+let diff = targetAngle - currentAngle;
+diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+
+// 🔥 velocidad de giro (ajústala)
+const turnSpeed = 0.05;
+
+// aplicar giro suave
+enemy.rotation.y += diff * turnSpeed;
+  }
+}
 /* ================= COLLISION CORE ================= */
 const ray = new THREE.Raycaster();
 
@@ -555,7 +709,9 @@ if (delta >= 1000) {
     Math.sin(pitch),
     Math.cos(yaw)*Math.cos(pitch)
   );
-
+  const deltaTime = 0.016; // simple (luego lo mejoramos)
+if(enemyMixer) enemyMixer.update(deltaTime);
+updateEnemy();
   camera.lookAt(camera.position.clone().add(dir));
 
   renderer.render(scene,camera);
