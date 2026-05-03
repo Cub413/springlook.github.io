@@ -3,170 +3,94 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tablet System Check</title>
+<title>Orientación</title>
 
 <style>
 body{
   margin:0;
   overflow:hidden;
   background:#000;
-  font-family:monospace;
 }
 
-/* ruido + scanlines */
-body::before{
-  content:"";
+/* 🔥 Fondo blur */
+#bg{
   position:fixed;
   inset:0;
-  background:
-    repeating-linear-gradient(
-      to bottom,
-      rgba(255,0,0,0.06),
-      rgba(0,0,0,0.06) 2px,
-      transparent 3px,
-      transparent 5px
-    );
-  pointer-events:none;
-  animation:scan 6s linear infinite;
-  mix-blend-mode:overlay;
-}
-
-@keyframes scan{
-  from{transform:translateY(0);}
-  to{transform:translateY(20px);}
-}
-
-/* escena */
-#scene{
-  position:fixed;
-  inset:0;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  perspective:900px;
-}
-
-/* mano (simple estilizada sin imagen externa) */
-.hand{
-  position:absolute;
-  width:420px;
-  height:420px;
-  background:
-    radial-gradient(circle at 50% 60%, #caa, #533);
-  border-radius:50%;
-  filter:blur(2px);
-  transform:translateY(120px);
-  opacity:0.6;
-  box-shadow:0 0 40px rgba(255,0,0,0.2);
-}
-
-/* tablet */
-#tablet{
-  width:260px;
-  height:360px;
-  background:#0d0d0d;
-  border:2px solid #ff2a2a;
-  border-radius:18px;
-  box-shadow:0 0 30px rgba(255,0,0,0.4);
-  transform:rotateX(12deg) rotateY(-10deg);
-  position:relative;
-  animation:float 2.5s ease-in-out infinite;
-}
-
-@keyframes float{
-  0%,100%{transform:rotateX(12deg) rotateY(-10deg) translateY(0);}
-  50%{transform:rotateX(14deg) rotateY(-8deg) translateY(-6px);}
-}
-
-/* pantalla tablet */
-#screen{
-  position:absolute;
-  inset:12px;
-  background:radial-gradient(circle at center,#200000,#000);
-  border:1px solid rgba(255,0,0,0.3);
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  text-align:center;
-  color:#ff2a2a;
-  box-shadow:inset 0 0 20px rgba(255,0,0,0.2);
-  animation:flicker 2s infinite;
-}
-
-@keyframes flicker{
-  0%,100%{opacity:1;}
-  50%{opacity:0.85;}
-  52%{opacity:1;}
-  54%{opacity:0.9;}
-}
-
-#title{
-  font-size:18px;
-  letter-spacing:3px;
-  text-shadow:0 0 10px red;
-}
-
-#msg{
-  font-size:12px;
-  margin-top:10px;
-  opacity:0.8;
-}
-
-#btn{
-  margin-top:15px;
-  padding:8px 16px;
-  border:1px solid #ff2a2a;
-  background:transparent;
-  color:#ff2a2a;
+  background-size:cover;
+  background-position:center;
+  filter:blur(20px);
+  transform:scale(1.2); /* evita bordes */
+  z-index:0;
   display:none;
+}
+
+/* 🔥 Imagen principal */
+#screenImg{
+  position:fixed;
+  inset:0;
+  margin:auto;
+  z-index:1;
   cursor:pointer;
 }
 
-#btn:active{
-  background:#ff2a2a;
-  color:#000;
-  box-shadow:0 0 15px red;
+/* 📱 Vertical */
+.vertical #bg{
+  display:block;
+}
+
+.vertical #screenImg{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  cursor:default;
+}
+
+/* 🖥️ Horizontal */
+.horizontal #screenImg{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  cursor:pointer;
 }
 </style>
 </head>
-
 <body>
 
-<div id="scene">
-  <div class="hand"></div>
-
-  <div id="tablet">
-    <div id="screen">
-      <div id="title">SYSTEM CHECK</div>
-      <div id="msg">Rotate device to continue</div>
-      <button id="btn">START</button>
-    </div>
-  </div>
-</div>
+<div id="bg"></div>
+<img id="screenImg" src="">
 
 <script>
-const btn = document.getElementById("btn");
-const msg = document.getElementById("msg");
+const img = document.getElementById("screenImg");
+const bg = document.getElementById("bg");
 
-function check(){
-  if(innerWidth > innerHeight){
-    msg.textContent = "READY";
-    btn.style.display = "block";
-  }else{
-    msg.textContent = "ROTATE DEVICE TO LANDSCAPE";
-    btn.style.display = "none";
+function checkOrientation() {
+  if (window.innerHeight > window.innerWidth) {
+    // 📱 Vertical
+    document.body.classList.add("vertical");
+    document.body.classList.remove("horizontal");
+
+    img.src = "texturas/rota.png";
+    bg.style.backgroundImage = 'url("texturas/rota.png")';
+
+    img.onclick = null;
+
+  } else {
+    // 🖥️ Horizontal
+    document.body.classList.add("horizontal");
+    document.body.classList.remove("vertical");
+
+    img.src = "texturas/click.png";
+    bg.style.backgroundImage = "none";
+
+    img.onclick = () => {
+      window.location.href = "game.html";
+    };
   }
 }
 
-btn.onclick = ()=>{
-  window.location.href = "game.html";
-};
-
-addEventListener("resize",check);
-addEventListener("orientationchange",check);
-
-check();
+checkOrientation();
+window.addEventListener("resize", checkOrientation);
+window.addEventListener("orientationchange", checkOrientation);
 </script>
 
 </body>
